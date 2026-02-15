@@ -29,3 +29,38 @@ you even if it's in another dimension. If it's false, pets will only switch dime
 
 ## Does this work with modded pets?
 Yeah, if they reuse Minecraft's code for tameable entities, it should be fine!
+
+---
+
+## Fork Changes (Kellphy)
+
+### New Features
+
+#### Allay Teleportation Support
+Allays that have a "liked player" (from giving them items) are now teleported the same way as tameable pets. If an allay is stationed at a noteblock, it won't be teleported.
+
+#### Nether Close-Range Placement
+When a pet is extracted after a nether portal teleport, it spawns within **1 block** of the player (instead of the normal 2–3 block range), so it doesn't end up on the wrong side of a portal platform.
+
+#### Per-Entity-Type Toggle via `/ppetp` Command
+A single command controls which entity types are managed by the mod:
+- `/ppetp enable <entity_type>` — e.g. `/ppetp enable minecraft:wolf`
+- `/ppetp disable <entity_type>` — e.g. `/ppetp disable minecraft:allay`
+- `/ppetp list` — shows all currently enabled types
+
+Settings are saved per-world and survive restarts. **No entity types are enabled by default** — you must explicitly enable the ones you want. Works with modded entity types too. Requires op level 2.
+
+### How Teleportation Works
+
+There are **two trigger paths**, both requiring the entity to be **48+ blocks away** (or in a different dimension):
+
+1. **Distance-based (tick hook)**
+   - **Tameable pets:** When vanilla's `tryTeleportToOwner` fires and the pet is 48+ blocks from the owner, the mod stores the pet in the player's NBT data instead of doing a vanilla teleport.
+   - **Allays:** Every server tick, if an allay has a liked player and is 48+ blocks away (or in a different dimension), it gets stored.
+
+2. **Chunk unload**
+   - When a chunk is about to unload, any tameable pet or allay in that chunk is checked. If it's supposed to be following a player and is 48+ blocks away (or in a different dimension), it gets stored before the chunk unloads — preventing the "lost pet" problem.
+
+**Extraction:** Each player tick, `PlayerPetStorage` checks if any stored pets can be placed back. It looks for a valid spot near the player (1 block for nether teleports, 2–3 blocks otherwise) and re-spawns the entity.
+
+**Cross-dimensional teleport** (e.g. through nether portals) is still controlled by the `proper-pet-tp:pet_teleport_cross_dimension` gamerule (default: false).
