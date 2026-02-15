@@ -6,19 +6,24 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import org.jetbrains.annotations.Nullable;
 
 public class PetTeleporter {
+    // Minimum distance (in blocks) before the mod stores the pet.
+    private static final double MIN_DISTANCE_SQ = 48 * 48;
+
     /**
      * Callback which is called by {@link nl.theepicblock.ppetp.mixin.TameableEntityMixin} whenever
-     * minecraft tries to teleport a pet.
+     * minecraft tries to teleport a pet. Only intervenes if 48+ blocks away.
      */
     public static void teleportPet(TameableEntity pet, LivingEntity owner) {
         if (owner instanceof ServerPlayerEntity player && shouldTeleportToInventory(pet, owner)) {
+            // Check if this entity type is enabled
+            if (!PPeTP.isTeleportEnabled(player.getEntityWorld().getServer(), pet.getType())) return;
             teleportToInventory(pet, player);
         }
     }
 
     /**
-     * The pet is far enough that it's almost getting unloaded! It needs to get tp'ed right now.
-     * This method ignores the distance requirement since it's clearly too far away already.
+     * The pet is in a chunk that's about to be unloaded! Store it in the player's data
+     * only if it's far enough away that it would genuinely be lost.
      */
     public static void petAlmostUnloaded(TameableEntity pet) {
         if (pet.cannotFollowOwner()) {
@@ -28,7 +33,20 @@ public class PetTeleporter {
 
         // We can't use the normal getOwner method because the player might've died
         var owner = getOwner(pet);
-        if (owner != null) {
+        if (owner == null) return;
+
+        // Check if this entity type is enabled
+        if (!PPeTP.isTeleportEnabled(owner.getEntityWorld().getServer(), pet.getType())) return;
+
+        // Different dimension (e.g. nether) — always store
+        if (pet.getEntityWorld() != owner.getEntityWorld()) {
+            teleportToInventory(pet, owner);
+            return;
+        }
+
+        // Same dimension — only store if far enough that vanilla can't save it
+        var distSq = pet.getEntityPos().subtract(owner.getEntityPos()).horizontalLengthSquared();
+        if (distSq >= MIN_DISTANCE_SQ) {
             teleportToInventory(pet, owner);
         }
     }
@@ -48,20 +66,15 @@ public class PetTeleporter {
     }
 
     /**
-     * Determines if a teleport to the inventory should occur. There may be more conditions
-     * applied {@link TameableEntity#shouldTryTeleportToOwner()}
+     * Determines if a teleport to the inventory should occur.
+     * Only triggers when the pet is 48+ blocks away horizontally, or in a different dimension.
      */
     public static boolean shouldTeleportToInventory(TameableEntity pet, LivingEntity owner) {
         if (pet.getEntityWorld() != owner.getEntityWorld()) {
-            // Different dimension? That's pretty far away as far as I'm concerned!
             return true;
         }
-        // Teleport when 48 blocks away horizontally.
-        // Vanilla tp kicks in at 12 blocks away any direction.
-        // Note that there's also an additional check for when the chunk unloads, which
-        // is separate from this condition
-        var dist = Math.abs(pet.getEntityPos().subtract(owner.getEntityPos()).horizontalLengthSquared());
-        return dist >= (48 * 48);
+        var dist = pet.getEntityPos().subtract(owner.getEntityPos()).horizontalLengthSquared();
+        return dist >= MIN_DISTANCE_SQ;
     }
 
     /**

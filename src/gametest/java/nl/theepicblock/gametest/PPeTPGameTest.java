@@ -25,7 +25,7 @@ public class PPeTPGameTest {
         pet.setPosition(testCenter);
         var uuidPet = pet.getUuid();
 
-        // Execute teleport
+        // Execute teleport — move player far enough that the 48-block threshold is met
         player.setPosition(testCenter.add(100, 500, 0));
 
         // Should've tp'ed

@@ -1,11 +1,13 @@
 package nl.theepicblock.ppetp.mixin;
 
+import net.minecraft.entity.passive.AllayEntity;
 import net.minecraft.entity.passive.TameableEntity;
 import net.minecraft.server.world.ServerEntityManager;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.entity.EntityLike;
 import net.minecraft.world.entity.EntityTrackingStatus;
 import net.minecraft.world.entity.SectionedEntityCache;
+import nl.theepicblock.ppetp.AllayTeleporter;
 import nl.theepicblock.ppetp.PPeTP;
 import nl.theepicblock.ppetp.PetTeleporter;
 import org.spongepowered.asm.mixin.Final;
@@ -29,16 +31,22 @@ public abstract class EntityUnloadListener {
                 var l = chunkPos.toLong();
                 var sections = this.cache.getTrackingSections(l);
                 var petsToCheck = new ArrayList<TameableEntity>();
+                var allaysToCheck = new ArrayList<AllayEntity>();
                 sections.forEach(section -> {
                     section.stream().forEach(e -> {
                         if (e instanceof TameableEntity pet) {
                             petsToCheck.add(pet);
+                        } else if (e instanceof AllayEntity allay) {
+                            allaysToCheck.add(allay);
                         }
                     });
                 });
 
                 for (var pet : petsToCheck) {
                     PetTeleporter.petAlmostUnloaded(pet);
+                }
+                for (var allay : allaysToCheck) {
+                    AllayTeleporter.allayAlmostUnloaded(allay);
                 }
             }
         } catch (Exception e) {

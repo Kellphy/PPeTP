@@ -5,6 +5,7 @@
   "mixins": [
     "AddFixerTo4661",
     "AddNbtToSchema",
+    "AllayEntityMixin",
     "EntityAccessor",
     "EntityUnloadListener",
     "ServerPlayerEntityMixin",

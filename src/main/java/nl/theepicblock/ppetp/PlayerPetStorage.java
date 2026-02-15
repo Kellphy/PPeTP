@@ -33,6 +33,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 
+import static net.minecraft.world.World.NETHER;
+
 import static nl.theepicblock.ppetp.PPeTP.LOGGER;
 
 public class PlayerPetStorage {
@@ -43,7 +45,7 @@ public class PlayerPetStorage {
      * The instances are kept around purely so functions can be run on them. We
      * reserialize them from nbt when they actually get put into the world.
      */
-    private List<Pair<@Nullable TameableEntity, PetEntry>> entitydatas = new ArrayList<>();
+    private List<Pair<@Nullable Entity, PetEntry>> entitydatas = new ArrayList<>();
     private boolean verified = false;
 
     public void tick(ServerPlayerEntity owner) {
@@ -65,20 +67,32 @@ public class PlayerPetStorage {
             Predicate<BlockPos> spotValidator;
 
             var e = pair.getLeft();
-            if (e != null) {
-                ((EntityAccessor)e).invokeSetWorld(world);
-                spotValidator = (pos) -> ((TameableEntityAccessor)e).invokeCanTeleportTo(pos);
+            if (e instanceof TameableEntity te) {
+                ((EntityAccessor)te).invokeSetWorld(world);
+                spotValidator = (pos) -> ((TameableEntityAccessor)te).invokeCanTeleportTo(pos);
             } else {
                 spotValidator = (pos) -> world.getBlockState(pos).isAir() &&
                         !world.getBlockState(pos.down()).getCollisionShape(world, pos.down()).isEmpty();
             }
-            var spot = SpotFinder.findSpot(owner, spotValidator);
+            // Use close range (1 block) when teleporting to/from the nether
+            var isNetherRelated = isNetherTeleport(owner, pair.getRight());
+            var spot = SpotFinder.findSpot(owner, spotValidator, isNetherRelated);
             if (spot != null) {
                 if (dropEntityInWorld(owner.getErrorReporterContext(), pair.getRight().data(), world, spot)) {
                     iter.remove();
                 }
             }
         }
+    }
+
+    /**
+     * @return true if the teleport involves the nether (either source or destination)
+     */
+    private boolean isNetherTeleport(ServerPlayerEntity owner, PetEntry e) {
+        var ownerInNether = owner.getEntityWorld().getRegistryKey() == NETHER;
+        var sourceWasNether = e.sourceDimension().isPresent() &&
+                e.sourceDimension().get().equals(NETHER.getValue());
+        return ownerInNether || sourceWasNether;
     }
 
     /**
@@ -126,7 +140,7 @@ public class PlayerPetStorage {
      * Returns true if and only if the insertion was successful. Removing
      * the entity from the world is a responsibility of the caller.
      */
-    public boolean insert(TameableEntity entity) {
+    public boolean insert(Entity entity) {
         try (ErrorReporter.Logging logging = new ErrorReporter.Logging(entity.getErrorReporterContext(), LOGGER)) {
             NbtWriteView nbtWriteView = NbtWriteView.create(logging.makeChild(() -> ".ppetp"), entity.getRegistryManager());
 
@@ -169,7 +183,7 @@ public class PlayerPetStorage {
             var errorCtx = player.getErrorReporterContext();
             list.forEach(e -> {
                 entitydatas.add(new Pair<>(
-                        readData(errorCtx, e.data(), world).orElse(null) instanceof TameableEntity te ? te : null,
+                        readData(errorCtx, e.data(), world).orElse(null),
                         e)
                 );
             });
