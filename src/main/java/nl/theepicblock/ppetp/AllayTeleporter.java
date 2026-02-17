@@ -58,9 +58,10 @@ public class AllayTeleporter {
     }
 
     /**
-     * An allay should not follow its owner if it's stationed at a noteblock.
+     * An allay should not follow its owner if it's stationed at a noteblock or leashed.
      */
     public static boolean cannotFollowOwner(AllayEntity allay) {
+        if (allay.isLeashed()) return true;
         var brain = allay.getBrain();
         return brain.getOptionalRegisteredMemory(MemoryModuleType.LIKED_NOTEBLOCK).isPresent();
     }
